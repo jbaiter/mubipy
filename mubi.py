@@ -2,7 +2,6 @@
 
 import json
 import re
-import sys
 
 from urllib import urlencode
 from urlparse import urljoin
@@ -507,9 +506,18 @@ class Mubi(object):
                     "Fantasy": 991,
                     "Experimental Film": 1005,
                     "Exploitation": 1030 }
+    _USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_5_8) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.151 Safari/535.19"
 
-    def __init__(self, username, password):
+    def __init__(self):
         self._session = requests.session()
+        self._session.headers = {'User-Agent': self._USER_AGENT}
+        
+    def __del__(self):
+        self._session.get(self._URL_LOGOUT)
+
+    def login(self, username, password):
+        self._username = username
+        self._password = password
         auth_token = self._REXP_AUTH_TOKEN.match(
             self._session.get(self._URL_LOGIN).content).groups()[0]
         session_payload = { 'utf8': '✓',
@@ -518,10 +526,8 @@ class Mubi(object):
                             'password': password,
                             'x': 0,
                             'y': 0 }
-        self._session.post(self._URL_SESSION, data=session_payload)
 
-    def __del__(self):
-        self._session.get(self._URL_LOGOUT)
+        return self._session.post(self._URL_SESSION, data=session_payload)
 
     def is_film_available(self, name):
         if not self._session.head(self._URL_VIDEO % name):

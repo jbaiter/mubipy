@@ -6,7 +6,8 @@ PASSWORD = ""
 
 class TestMubi(object):
     def setUp(self):
-        self.mubi = Mubi(USER, PASSWORD)
+        self.mubi = Mubi()
+        self.mubi.login(USER, PASSWORD)
 
     def tearDown(self):
         del self.mubi
@@ -16,6 +17,7 @@ class TestMubi(object):
 
     def test_get_play_url(self):
         assert "cleo-de-5-a-7_de_640W_600.m4v" in self.mubi.get_play_url(244)
+        assert "branded-to-kill_de_640W_600.m4v" in self.mubi.get_play_url(576)
 
     def test_search_film(self):
         assert 12580 in self.mubi.search_film("nostalghia").values()
