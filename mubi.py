@@ -547,36 +547,41 @@ class Mubi(object):
         return json.loads(self._session.get(self._URL_SEARCH % term).content)
 
     def search_film(self, term):
+        #FIXME: Keep the order provided by the server!
         results = self._search(term)
         filtered = [x for x in results if x['category'] == "Films"]
         final = {x['label']: x['id'] for x in filtered if self.is_film_available(x['id'])}
         return final
 
     def search_person(self, term):
+        #FIXME: Keep the order provided by the server!
         results = self._search(term)
         final = {x['label']: x['id'] for x in results if x['category'] == "People"}
         return final
 
     def get_person_films(self, person_id):
+        #FIXME: Keep the order provided by the server!
         person_page = self._session.get(self._URL_PERSON % person_id)
         return {x[2]: x[0] for x in self._REXP_WATCHABLE_TITLE.findall(person_page.content)}
 
     def get_all_films(self, page=1, sort_key='popularity', genre=None, country=None, language=None):
+        #FIXME: Keep the order provided by the server!
         if sort_key not in self._SORT_KEYS:
             raise Exception("Invalid sort key, must be one of %s" % self._SORT_KEYS.__repr__())
         params = { 'page': page,
                    'sort': sort_key }
         if genre:
-            params["category_id"] = self._CATEGORIES[genre]
+            params["category_id"] = genre
         elif country:
-            params["historic_country_id"] = self._COUNTRIES[country]
+            params["historic_country_id"] = country
         elif language:
-            params["language_id"] = self._LANGUAGES[language]
+            params["language_id"] = language
         list_url = urljoin(self._URL_LIST, "?" + urlencode(params))
         list_page = self._session.get(list_url)
         return {x[2]: x[0] for x in self._REXP_WATCHABLE_TITLE.findall(list_page.content)}
 
     def get_all_programs(self):
+        #FIXME: Keep the order provided by the server!
         programs_page = self._session.get(self._URL_PROGRAMS)
         programs = self._REXP_PROGRAM.findall(programs_page.content)
         return {title: url.split("/")[-1] for (url, title) in programs}
