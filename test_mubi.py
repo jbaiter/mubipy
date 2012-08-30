@@ -36,4 +36,4 @@ class TestMubi(object):
         assert "Films by Peter Tscherkassky" in self.mubi.get_all_programs()
 
     def test_get_program_films(self):
-        assert len(self.mubi.get_program_films("http://mubi.com/programs/films-by-peter-tscherkassky--2")) == 7
+        assert len(self.mubi.get_program_films("films-by-peter-tscherkassky--2")) == 7

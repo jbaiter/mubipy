@@ -15,6 +15,7 @@ class Mubi(object):
     _URL_SESSION = urljoin(_URL_MUBI_SECURE, "session")
     _URL_SEARCH = urljoin(_URL_MUBI, "services/films/search.json?term=%s")
     _URL_PROGRAMS = urljoin(_URL_MUBI, "cinemas")
+    _URL_SINGLE_PROGRAM = urljoin(_URL_MUBI, "programs")
     _URL_VIDEO = urljoin(_URL_MUBI, "films/%s/secure_url")
     _URL_PRESCREEN = urljoin(_URL_MUBI, "films/%s/prescreen")
     _URL_LIST = urljoin(_URL_MUBI, "watch")
@@ -578,9 +579,11 @@ class Mubi(object):
     def get_all_programs(self):
         programs_page = self._session.get(self._URL_PROGRAMS)
         programs = self._REXP_PROGRAM.findall(programs_page.content)
-        return {title: url for (url, title) in programs}
+        return {title: url.split("/")[-1] for (url, title) in programs}
 
-    def get_program_films(self, url):
-        program_page = self._session.get(url)
+    def get_program_films(self, cinema):
+        #FIXME: Make that shit readable, for heaven's sake!
+        #FIXME: Keep the order provided by the server!
+        program_page = self._session.get("/".join([self._URL_SINGLE_PROGRAM, cinema]))
         titles = self._REXP_PROGRAM_TITLE.findall(program_page.content)
         return {"%s: %s (%s)" % (x[4], x[2], x[3]): x[0] for x in titles}
