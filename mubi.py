@@ -22,7 +22,9 @@ class Mubi(object):
     _URL_PERSON = urljoin(_URL_MUBI, "cast_members/%s")
     _URL_LOGOUT = urljoin(_URL_MUBI, "logout")
     _URL_FILMSTILL = "http://s3.amazonaws.com/auteurs_production/images/film/%s/w448/%s.jpg"
-    _URL_DETAILS = urljoin(_URL_MUBI, "films/%s")
+    _URL_SHORTDETAILS = urljoin(_URL_MUBI, "/services/films/tooltip?id=%s&country_code=US&locale=en_US")
+    _URL_FULLDETAILS = urljoin(_URL_MUBI, "films/%s")
+    _URL_WATCHLIST = urljoin(_URL_MUBI, "/users/%s/watchlist.json")
 
     _SORT_KEYS = ['popularity', 'recently_added', 'rating', 'year', 'running_time']
 
@@ -523,11 +525,15 @@ class Mubi(object):
     def _search(self, term):
         return json.loads(self._session.get(self._URL_SEARCH % term).content)
 
+    def _get_shortdetails(self, mubi_id):
+        return json.loads(self._session.get(self._URL_SHORTDETAILS % unicode(mubi_id)
+            ).content)
+
     def _get_filmstill(self, name):
         return self._URL_FILMSTILL % (name, name)
 
     def _resolve_id(self, mubi_id):
-        return self._session.head(self._URL_DETAILS % mubi_id
+        return self._session.head(self._URL_FULLDETAILS % mubi_id
                 ).headers['location'].split("/")[-1]
 
     def login(self, username, password):
@@ -541,8 +547,10 @@ class Mubi(object):
                             'password': password,
                             'x': 0,
                             'y': 0 }
-
-        return self._session.post(self._URL_SESSION, data=session_payload)
+        landing_page = self._session.post(self._URL_SESSION,
+                                          data=session_payload)
+        self._userid = BS(landing_page.content).find(
+                "a", {"class": "user_avatar"}).get("href").split("/")[-1]
 
     def is_film_available(self, name):
         if not self._session.head(self._URL_VIDEO % name):
@@ -618,3 +626,13 @@ class Mubi(object):
         return [("%s: %s (%s)" % (x['director'], x['title'], x['country_year']), x['id'],
                  x['thumb'])
                 for x in films]
+
+    def get_watchlist(self, userid=None):
+        if not userid:
+            userid = self._userid
+        items = [self._get_shortdetails(x)
+                for x in json.loads(
+                    self._session.get(self._URL_WATCHLIST % userid).content)]
+        return [("%s (%s %s)" % (x['title'], x['primary_country'], x['year']),
+                 x['id'], self._get_filmstill(self._resolve_id(x['id'])))
+                 for x in items]
