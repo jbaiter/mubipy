@@ -23,6 +23,7 @@ class Mubi(object):
     _URL_LIST = urljoin(_URL_MUBI, "watch")
     _URL_PERSON = urljoin(_URL_MUBI, "cast_members/%s")
     _URL_LOGOUT = urljoin(_URL_MUBI, "logout")
+    _URL_FILMSTILL = "http://s3.amazonaws.com/auteurs_production/images/film/%s/w448/%s.jpg"
 
     _SORT_KEYS = ['popularity', 'recently_added', 'rating', 'year', 'running_time']
 
@@ -515,10 +516,16 @@ class Mubi(object):
         items = [x for x in BS(page).findAll("div", {"class": re.compile("item.*")})
                  if (x.findChild("h2")
                  and x.findChild("div", {"class": re.compile("watch_link.*")}))]
-        return [(x.find("h2").text, x.get("data-item-id")) for x in items]
+        return [(x.find("h2").text, x.get("data-item-id"),
+                 x.find("div", {"class": "cropped_image"}
+                        ).find("img").get("src").replace("w192", "w448"))
+                for x in items]
 
     def _search(self, term):
         return json.loads(self._session.get(self._URL_SEARCH % term).content)
+
+    def _get_filmstill(self, name):
+        return self._URL_FILMSTILL % (name, name)
 
     def login(self, username, password):
         self._username = username
@@ -555,7 +562,8 @@ class Mubi(object):
     def search_film(self, term):
         results = self._search(term)
         filtered = [x for x in results if x['category'] == "Films"]
-        final = [(x['label'], x['id'])
+        final = [(x['label'], x['id'],
+                  self._get_filmstill(x['url'].split("/")[-1]))
                  for x in filtered if self.is_film_available(x['id'])]
         return final
 
@@ -564,7 +572,6 @@ class Mubi(object):
         final = [(x['label'], x['id'])
                  for x in results if x['category'] == "People"]
         return final
-
     
     def get_person_films(self, person_id):
         person_page = self._session.get(self._URL_PERSON % person_id)
@@ -587,9 +594,10 @@ class Mubi(object):
 
     def get_all_programs(self):
         programs_page = self._session.get(self._URL_PROGRAMS)
-        programs = BS(programs_page.content).findAll("h2")
-        return [(x.text, x.find("a").get("href").split("/")[-1])
-                for x in programs]
+        programs = BS(programs_page.content).findAll(
+                    "div", {"class": re.compile("use6.*")})
+        return [(x.find("h2").text, x.find("a").get("href").split("/")[-1],
+                 x.find("img").get("src")) for x in programs]
 
     def get_program_films(self, cinema):
         program_page = self._session.get("/".join([self._URL_SINGLE_PROGRAM, cinema]))
@@ -602,6 +610,8 @@ class Mubi(object):
             film['director'] = item.find("h2", {"class": "film_director"}
                                          ).find("a").text
             film['country_year'] = item.find("h3", {"class": "film_country_year"}).text
+            film['thumb'] = item.find("img").get("src").replace("w320", "w448")
             films.append(film)
-        return [("%s: %s (%s)" % (x['director'], x['title'], x['country_year']), x['id'])
+        return [("%s: %s (%s)" % (x['director'], x['title'], x['country_year']), x['id'],
+                 x['thumb'])
                 for x in films]
