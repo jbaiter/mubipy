@@ -8,6 +8,8 @@ from urlparse import urljoin
 
 import requests
 
+from BeautifulSoup import BeautifulSoup as BS
+
 class Mubi(object):
     _URL_MUBI = "http://mubi.com"
     _URL_MUBI_SECURE = "https://mubi.com"
@@ -21,17 +23,6 @@ class Mubi(object):
     _URL_LIST = urljoin(_URL_MUBI, "watch")
     _URL_PERSON = urljoin(_URL_MUBI, "cast_members/%s")
     _URL_LOGOUT = urljoin(_URL_MUBI, "logout")
-
-    # TODO: Check if there would be a significant performance hit when using
-    #       BeautifulSoup to parse the HTML instead of Regular Expressions.
-    #       A small one can be tolerated for the sake of improved readability
-    #       and maintainability.
-    _REXP_AUTH_TOKEN = re.compile(r".*<input name=\"authenticity_token\" type=\"hidden\" value=\"([^\n]*)\".*", re.S)
-    _REXP_MUBI_ID = re.compile(r".*data-id=\"([^\n\"]*)\".*", re.S)
-    _REXP_AVAILABLE = re.compile(r".*Film is not authorized to be viewed in your country.*", re.S)
-    _REXP_PROGRAM = re.compile(r".*<h2><a href=\"([^\n]*)\">([^\n]*)</a></h2>.*")
-    _REXP_PROGRAM_TITLE = re.compile(r".*<div class=\"item.*\" data-item-id=\"(.*)\">.*\n.*\n.*<h2 class=\"film_title \"><a href=\"/films/(.*)\">(.*)</a></h2>.*\n.*<h3 class=\"film_country_year\">(.*)</h3>.*\n.*\n.*<a href=\"http://mubi.com/cast_members/.*\">(.*)</a>.*")
-    _REXP_WATCHABLE_TITLE = re.compile(r".*<div class=\"item.*\" data-item-id=\"([^\n]*)\">.*\n.*\n.*<a href=\"/films/(.*)\">(.*)</a></h2>\n.*(?:\n.*)?<div class=\"watch_link.*")
 
     _SORT_KEYS = ['popularity', 'recently_added', 'rating', 'year', 'running_time']
 
@@ -520,11 +511,20 @@ class Mubi(object):
     def __del__(self):
         self._session.get(self._URL_LOGOUT)
 
+    def _parse_watchable_titles(self, page):
+        items = [x for x in BS(page).findAll("div", {"class": re.compile("item.*")})
+                 if (x.findChild("h2")
+                 and x.findChild("div", {"class": re.compile("watch_link.*")}))]
+        return [(x.find("h2").text, x.get("data-item-id")) for x in items]
+
+    def _search(self, term):
+        return json.loads(self._session.get(self._URL_SEARCH % term).content)
+
     def login(self, username, password):
         self._username = username
         self._password = password
-        auth_token = self._REXP_AUTH_TOKEN.match(
-            self._session.get(self._URL_LOGIN).content).groups()[0]
+        login_page = self._session.get(self._URL_LOGIN).content
+        auth_token = BS(login_page).find("input", {"name": "authenticity_token"}).get("value")
         session_payload = { 'utf8': '✓',
                             'authenticity_token': auth_token,
                             'email': username,
@@ -537,8 +537,12 @@ class Mubi(object):
     def is_film_available(self, name):
         if not self._session.head(self._URL_VIDEO % name):
             prescreen_page = self._session.get(self._URL_PRESCREEN % name)
-            if not prescreen_page: raise Exception("Ooops, something went wrong while scraping :-(")
-            else: return not self._REXP_AVAILABLE.match(prescreen_page.content)
+            if not prescreen_page:
+                raise Exception("Ooops, something went wrong while scraping :-(")
+            else:
+                availability = BS(prescreen_page.content).find(
+                        "div", {"class": "film_viewable_status "}).text
+                return not "Not Available to watch" in availability
         else:
             return True
 
@@ -547,9 +551,7 @@ class Mubi(object):
             raise Exception("This film is not available in your country.")
         return self._session.get(self._URL_VIDEO % name).content
 
-    def _search(self, term):
-        return json.loads(self._session.get(self._URL_SEARCH % term).content)
-
+    
     def search_film(self, term):
         results = self._search(term)
         filtered = [x for x in results if x['category'] == "Films"]
@@ -563,10 +565,10 @@ class Mubi(object):
                  for x in results if x['category'] == "People"]
         return final
 
+    
     def get_person_films(self, person_id):
         person_page = self._session.get(self._URL_PERSON % person_id)
-        return [(x[2], x[0]) for x in
-                self._REXP_WATCHABLE_TITLE.findall(person_page.content)]
+        return self._parse_watchable_titles(person_page.content)
 
     def get_all_films(self, page=1, sort_key='popularity', genre=None, country=None, language=None):
         if sort_key not in self._SORT_KEYS:
@@ -581,16 +583,25 @@ class Mubi(object):
             params["language_id"] = language
         list_url = urljoin(self._URL_LIST, "?" + urlencode(params))
         list_page = self._session.get(list_url)
-        return [(x[2], x[0]) for x in
-                self._REXP_WATCHABLE_TITLE.findall(list_page.content)]
+        return self._parse_watchable_titles(list_page.content)
 
     def get_all_programs(self):
         programs_page = self._session.get(self._URL_PROGRAMS)
-        programs = self._REXP_PROGRAM.findall(programs_page.content)
-        return [(title, url.split("/")[-1]) for (url, title) in programs]
+        programs = BS(programs_page.content).findAll("h2")
+        return [(x.text, x.find("a").get("href").split("/")[-1])
+                for x in programs]
 
     def get_program_films(self, cinema):
-        #FIXME: Make that shit readable, for heaven's sake!
         program_page = self._session.get("/".join([self._URL_SINGLE_PROGRAM, cinema]))
-        titles = self._REXP_PROGRAM_TITLE.findall(program_page.content)
-        return [("%s: %s (%s)" % (x[4], x[2], x[3]), x[0]) for x in titles]
+        items = BS(program_page.content).findAll("div",{"class": re.compile("item.*")})
+        films = []
+        for item in items:
+            film = dict()
+            film['id'] = item.get("data-item-id")
+            film['title'] = item.find("h2", {"class": "film_title "}).text
+            film['director'] = item.find("h2", {"class": "film_director"}
+                                         ).find("a").text
+            film['country_year'] = item.find("h3", {"class": "film_country_year"}).text
+            films.append(film)
+        return [("%s: %s (%s)" % (x['director'], x['title'], x['country_year']), x['id'])
+                for x in films]
