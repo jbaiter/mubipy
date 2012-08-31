@@ -53,5 +53,5 @@ class TestMubi(object):
 
     def test_get_watchlist(self):
         assert ((u'From Morning to Midnight (Germany 1920)',
-                36051, 'http://s3.amazonaws.com/auteurs_production/images/film/from-morning-to-midnight/w448/from-morning-to-midnight.jpg')
+                '36051', 'http://s3.amazonaws.com/auteurs_production/images/film/from-morning-to-midnight/w448/from-morning-to-midnight.jpg')
                 in self.mubi.get_watchlist())
