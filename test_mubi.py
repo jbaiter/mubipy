@@ -20,10 +20,12 @@ class TestMubi(object):
         assert "branded-to-kill_de_640W_600.m4v" in self.mubi.get_play_url(576)
 
     def test_search_film(self):
-        assert 12580 in self.mubi.search_film("nostalghia").values()
+        assert (u'Nostalghia (1983)',
+                12580) in self.mubi.search_film("nostalghia")
 
     def test_search_person(self):
-        assert 68993 in self.mubi.search_person("tscherkassky").values()
+        assert (u'Peter Tscherkassky',
+                68993) in self.mubi.search_person("tscherkassky")
 
     def test_get_person_films(self):
         assert len(self.mubi.get_person_films(68993)) == 7
@@ -33,7 +35,8 @@ class TestMubi(object):
         assert len(self.mubi.get_all_films(page=2)) == 20
 
     def test_get_all_programs(self):
-        assert "Films by Peter Tscherkassky" in self.mubi.get_all_programs()
+        assert ('Films by Peter Tscherkassky',
+                'films-by-peter-tscherkassky--2') in self.mubi.get_all_programs()
 
     def test_get_program_films(self):
         assert len(self.mubi.get_program_films("films-by-peter-tscherkassky--2")) == 7

@@ -22,6 +22,10 @@ class Mubi(object):
     _URL_PERSON = urljoin(_URL_MUBI, "cast_members/%s")
     _URL_LOGOUT = urljoin(_URL_MUBI, "logout")
 
+    # TODO: Check if there would be a significant performance hit when using
+    #       BeautifulSoup to parse the HTML instead of Regular Expressions.
+    #       A small one can be tolerated for the sake of improved readability
+    #       and maintainability.
     _REXP_AUTH_TOKEN = re.compile(r".*<input name=\"authenticity_token\" type=\"hidden\" value=\"([^\n]*)\".*", re.S)
     _REXP_MUBI_ID = re.compile(r".*data-id=\"([^\n\"]*)\".*", re.S)
     _REXP_AVAILABLE = re.compile(r".*Film is not authorized to be viewed in your country.*", re.S)
@@ -547,25 +551,24 @@ class Mubi(object):
         return json.loads(self._session.get(self._URL_SEARCH % term).content)
 
     def search_film(self, term):
-        #FIXME: Keep the order provided by the server!
         results = self._search(term)
         filtered = [x for x in results if x['category'] == "Films"]
-        final = {x['label']: x['id'] for x in filtered if self.is_film_available(x['id'])}
+        final = [(x['label'], x['id'])
+                 for x in filtered if self.is_film_available(x['id'])]
         return final
 
     def search_person(self, term):
-        #FIXME: Keep the order provided by the server!
         results = self._search(term)
-        final = {x['label']: x['id'] for x in results if x['category'] == "People"}
+        final = [(x['label'], x['id'])
+                 for x in results if x['category'] == "People"]
         return final
 
     def get_person_films(self, person_id):
-        #FIXME: Keep the order provided by the server!
         person_page = self._session.get(self._URL_PERSON % person_id)
-        return {x[2]: x[0] for x in self._REXP_WATCHABLE_TITLE.findall(person_page.content)}
+        return [(x[2], x[0]) for x in
+                self._REXP_WATCHABLE_TITLE.findall(person_page.content)]
 
     def get_all_films(self, page=1, sort_key='popularity', genre=None, country=None, language=None):
-        #FIXME: Keep the order provided by the server!
         if sort_key not in self._SORT_KEYS:
             raise Exception("Invalid sort key, must be one of %s" % self._SORT_KEYS.__repr__())
         params = { 'page': page,
@@ -578,17 +581,16 @@ class Mubi(object):
             params["language_id"] = language
         list_url = urljoin(self._URL_LIST, "?" + urlencode(params))
         list_page = self._session.get(list_url)
-        return {x[2]: x[0] for x in self._REXP_WATCHABLE_TITLE.findall(list_page.content)}
+        return [(x[2], x[0]) for x in
+                self._REXP_WATCHABLE_TITLE.findall(list_page.content)]
 
     def get_all_programs(self):
-        #FIXME: Keep the order provided by the server!
         programs_page = self._session.get(self._URL_PROGRAMS)
         programs = self._REXP_PROGRAM.findall(programs_page.content)
-        return {title: url.split("/")[-1] for (url, title) in programs}
+        return [(title, url.split("/")[-1]) for (url, title) in programs]
 
     def get_program_films(self, cinema):
         #FIXME: Make that shit readable, for heaven's sake!
-        #FIXME: Keep the order provided by the server!
         program_page = self._session.get("/".join([self._URL_SINGLE_PROGRAM, cinema]))
         titles = self._REXP_PROGRAM_TITLE.findall(program_page.content)
-        return {"%s: %s (%s)" % (x[4], x[2], x[3]): x[0] for x in titles}
+        return [("%s: %s (%s)" % (x[4], x[2], x[3]), x[0]) for x in titles]
