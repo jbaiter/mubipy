@@ -2,6 +2,7 @@
 
 import json
 import re
+from math import ceil
 from urllib import urlencode
 from urlparse import urljoin
 
@@ -601,7 +602,10 @@ class Mubi(object):
             params["language_id"] = language
         list_url = urljoin(self._URL_LIST, "?" + urlencode(params))
         list_page = self._session.get(list_url)
-        return self._parse_watchable_titles(list_page.content)
+        num_pages = ceil(int(BS(list_page.content)
+                         .find("strong", {"id": "result_count"}).text
+                         .split()[0])/20.0)
+        return (num_pages, self._parse_watchable_titles(list_page.content))
 
     def get_all_programs(self):
         programs_page = self._session.get(self._URL_PROGRAMS)

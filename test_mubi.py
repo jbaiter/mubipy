@@ -39,8 +39,9 @@ class TestMubi(object):
         assert len(self.mubi.get_person_films(68993)) == 7
 
     def test_get_all_films(self):
-        assert len(self.mubi.get_all_films()) == 20
-        assert len(self.mubi.get_all_films(page=2)) == 20
+        assert self.mubi.get_all_films()[0] == 53
+        assert len(self.mubi.get_all_films()[1]) == 20
+        assert len(self.mubi.get_all_films(page=2)[1]) == 20
 
     def test_get_all_programs(self):
         assert ((u'Films by Peter Tscherkassky', u'films-by-peter-tscherkassky--2',
