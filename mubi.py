@@ -634,5 +634,5 @@ class Mubi(object):
                 for x in json.loads(
                     self._session.get(self._URL_WATCHLIST % userid).content)]
         return [("%s (%s %s)" % (x['title'], x['primary_country'], x['year']),
-                 x['id'], self._get_filmstill(self._resolve_id(x['id'])))
+                 unicode(x['id']), self._get_filmstill(self._resolve_id(x['id'])))
                  for x in items]
