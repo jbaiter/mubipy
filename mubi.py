@@ -26,6 +26,7 @@ class Mubi(object):
     _URL_SHORTDETAILS = urljoin(_URL_MUBI, "/services/films/tooltip?id=%s&country_code=US&locale=en_US")
     _URL_FULLDETAILS = urljoin(_URL_MUBI, "films/%s")
     _URL_WATCHLIST = urljoin(_URL_MUBI, "/users/%s/watchlist.json")
+    _URL_PERSON_IMAGE = "http://s3.amazonaws.com/auteurs_production/images/cast_member/%s/original.jpg"
 
     _SORT_KEYS = ['popularity', 'recently_added', 'rating', 'year', 'running_time']
 
@@ -533,6 +534,12 @@ class Mubi(object):
     def _get_filmstill(self, name):
         return self._URL_FILMSTILL % (name, name)
 
+    def _get_person_image(self, person_id):
+        url = self._URL_PERSON_IMAGE % unicode(person_id)
+        if not self._session.head(url):
+            url = url.replace("jpg", "jpeg")
+        return url
+
     def _resolve_id(self, mubi_id):
         return self._session.head(self._URL_FULLDETAILS % mubi_id
                 ).headers['location'].split("/")[-1]
@@ -581,7 +588,7 @@ class Mubi(object):
 
     def search_person(self, term):
         results = self._search(term)
-        final = [(x['label'], x['id'])
+        final = [(x['label'], x['id'], self._get_person_image(x['id']))
                  for x in results if x['category'] == "People"]
         return final
     

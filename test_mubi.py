@@ -32,8 +32,9 @@ class TestMubi(object):
                 in self.mubi.search_film("nostalghia"))
 
     def test_search_person(self):
-        assert (u'Peter Tscherkassky',
-                68993) in self.mubi.search_person("tscherkassky")
+        assert ((u'Peter Tscherkassky', 68993,
+                "http://s3.amazonaws.com/auteurs_production/images/cast_member/68993/original.jpeg")
+                in self.mubi.search_person("tscherkassky"))
 
     def test_get_person_films(self):
         assert len(self.mubi.get_person_films(68993)) == 7
