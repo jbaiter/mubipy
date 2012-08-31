@@ -2,12 +2,10 @@
 
 import json
 import re
-
 from urllib import urlencode
 from urlparse import urljoin
 
 import requests
-
 from BeautifulSoup import BeautifulSoup as BS
 
 class Mubi(object):
@@ -24,6 +22,7 @@ class Mubi(object):
     _URL_PERSON = urljoin(_URL_MUBI, "cast_members/%s")
     _URL_LOGOUT = urljoin(_URL_MUBI, "logout")
     _URL_FILMSTILL = "http://s3.amazonaws.com/auteurs_production/images/film/%s/w448/%s.jpg"
+    _URL_DETAILS = urljoin(_URL_MUBI, "films/%s")
 
     _SORT_KEYS = ['popularity', 'recently_added', 'rating', 'year', 'running_time']
 
@@ -526,6 +525,10 @@ class Mubi(object):
 
     def _get_filmstill(self, name):
         return self._URL_FILMSTILL % (name, name)
+
+    def _resolve_id(self, mubi_id):
+        return self._session.head(self._URL_DETAILS % mubi_id
+                ).headers['location'].split("/")[-1]
 
     def login(self, username, password):
         self._username = username
