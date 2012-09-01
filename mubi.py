@@ -26,12 +26,17 @@
 
 import json
 import re
+from collections import namedtuple
 from math import ceil
 from urllib import urlencode
 from urlparse import urljoin
 
 import requests
 from BeautifulSoup import BeautifulSoup as BS
+
+Film = namedtuple('Film', ['title', 'mubi_id', 'filmstill'])
+Person = namedtuple('Person', ['name', 'mubi_id', 'portrait'])
+Program = namedtuple('Program', ['title', 'identifier', 'picture'])
 
 class Mubi(object):
     _URL_MUBI = "http://mubi.com"
@@ -543,9 +548,11 @@ class Mubi(object):
         items = [x for x in BS(page).findAll("div", {"class": re.compile("item.*")})
                  if (x.findChild("h2")
                  and x.findChild("div", {"class": re.compile("watch_link.*")}))]
-        return [(x.find("h2").text, x.get("data-item-id"),
-                 x.find("div", {"class": "cropped_image"}
-                        ).find("img").get("src").replace("w192", "w448"))
+        return [Film(title=x.find("h2").text,
+                     mubi_id=x.get("data-item-id"),
+                     filmstill=(x.find("div", {"class": "cropped_image"})
+                                .find("img").get("src")
+                                .replace("w192", "w448")))
                 for x in items]
 
     def _search(self, term):
@@ -605,14 +612,17 @@ class Mubi(object):
     def search_film(self, term):
         results = self._search(term)
         filtered = [x for x in results if x['category'] == "Films"]
-        final = [(x['label'], x['id'],
-                  self._get_filmstill(x['url'].split("/")[-1]))
+        final = [Film(title=x['label'],
+                      mubi_id=x['id'],
+                      filmstill=self._get_filmstill(x['url'].split("/")[-1]))
                  for x in filtered if self.is_film_available(x['id'])]
         return final
 
     def search_person(self, term):
         results = self._search(term)
-        final = [(x['label'], x['id'], self._get_person_image(x['id']))
+        final = [Person(name=x['label'],
+                        mubi_id=x['id'],
+                        portrait=self._get_person_image(x['id']))
                  for x in results if x['category'] == "People"]
         return final
     
@@ -642,8 +652,10 @@ class Mubi(object):
         programs_page = self._session.get(self._URL_PROGRAMS)
         programs = BS(programs_page.content).findAll(
                     "div", {"class": re.compile("use6.*")})
-        return [(x.find("h2").text, x.find("a").get("href").split("/")[-1],
-                 x.find("img").get("src")) for x in programs]
+        return [Program(title=x.find("h2").text,
+                        identifier=x.find("a").get("href").split("/")[-1],
+                        picture=x.find("img").get("src"))
+                for x in programs]
 
     def get_program_films(self, cinema):
         program_page = self._session.get("/".join([self._URL_SINGLE_PROGRAM, cinema]))
@@ -658,8 +670,10 @@ class Mubi(object):
             film['country_year'] = item.find("h3", {"class": "film_country_year"}).text
             film['thumb'] = item.find("img").get("src").replace("w320", "w448")
             films.append(film)
-        return [("%s: %s (%s)" % (x['director'], x['title'], x['country_year']), x['id'],
-                 x['thumb'])
+        return [Film(title="%s: %s (%s)" % (x['director'], x['title'],
+                                            x['country_year']),
+                     mubi_id=x['id'],
+                     filmstill=x['thumb'])
                 for x in films]
 
     def get_watchlist(self, userid=None):
@@ -668,6 +682,8 @@ class Mubi(object):
         items = [self._get_shortdetails(x)
                 for x in json.loads(
                     self._session.get(self._URL_WATCHLIST % userid).content)]
-        return [("%s (%s %s)" % (x['title'], x['primary_country'], x['year']),
-                 unicode(x['id']), self._get_filmstill(self._resolve_id(x['id'])))
+        return [Film(title="%s (%s %s)" % (x['title'], x['primary_country'],
+                                           x['year']),
+                     mubi_id=unicode(x['id']),
+                     filmstill=self._get_filmstill(self._resolve_id(x['id'])))
                  for x in items]
