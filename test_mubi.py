@@ -80,3 +80,12 @@ class TestMubi(object):
         assert ((u'From Morning to Midnight (Germany 1920)',
                 '36051', 'http://s3.amazonaws.com/auteurs_production/images/film/from-morning-to-midnight/w448/from-morning-to-midnight.jpg')
                 in self.mubi.get_watchlist())
+
+    def test_genres(self):
+        assert self.mubi.genres['Adventure'] == '466'
+
+    def test_languages(self):
+        assert self.mubi.languages['Esperanto'] == '83'
+
+    def test_countries(self):
+        assert self.mubi.countries['Timor-Leste'] == '220'
