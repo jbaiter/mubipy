@@ -37,10 +37,22 @@ from BeautifulSoup import BeautifulSoup as BS
 Film = namedtuple('Film', ['title', 'mubi_id', 'filmstill'])
 Person = namedtuple('Person', ['name', 'mubi_id', 'portrait'])
 Program = namedtuple('Program', ['title', 'identifier', 'picture'])
+VideoMetadata = namedtuple('VideoMetadata',
+                           ['year', 'rating', 'cast', 'director', 'plot',
+                            'title', 'originaltitle', 'duration', 'writer',
+                            'playcount', 'trailer', 'audio_language',
+                            'subtitle_language'])
 
 class Mubi(object):
     _URL_MUBI = "http://mubi.com"
     _URL_MUBI_SECURE = "https://mubi.com"
+    _regexps = { "item":        re.compile("item.*"),
+                 "watch_link":  re.compile("watch_link.*"),
+                 "duration":    re.compile("\d+ Min"),
+                 "program":     re.compile("use6.*"),
+                 "rating":      re.compile(r"Currently ([1-5]\.\d)/5 Stars."),
+                 "audio_lang":  re.compile(r"Audio in (.*)"),
+                 "sub_lang":    re.compile(r"Subtitled in (.*)")}
     _mubi_urls = {
                   "login":      urljoin(_URL_MUBI_SECURE, "login"),
                   "session":    urljoin(_URL_MUBI_SECURE, "session"),
@@ -76,13 +88,12 @@ class Mubi(object):
         self._session.get(self._mubi_urls["logout"])
 
     def _parse_watchable_titles(self, page):
-        items = [x for x in BS(page).findAll("div",
-                                             {"class": re.compile("item.*")})
+        items = [x for x in BS(page).findAll("div", {"class": self._regexps["item"]})
                  if (x.findChild("h2")
-                 and x.findChild("div", {"class": re.compile("watch_link.*")}))]
+                 and x.findChild("div", {"class": self._regexps["watch_link"]}))]
         return [Film(title=x.find("h2").text,
                      mubi_id=x.get("data-item-id"),
-                     filmstill=(x.find("div", {"class": "cropped_image"})
+                     filmstill=(x.find("div", "cropped_image")
                                 .find("img").get("src")
                                 .replace("w192", "w448")))
                 for x in items]
@@ -127,6 +138,51 @@ class Mubi(object):
         return {x.text: x.get("value") for x in options
                 if x.get("value") != ""}
 
+    def _parse_metadata(self, mubi_id):
+        page = BS(self._session.get(self._mubi_urls["fulldetails"] % mubi_id)
+                  .content)
+        full_cast = page.findAll("h3", "film_cast")
+
+        year = page.find("h3", "film_year").text
+        rating = float(self._regexps["rating"].match(
+                 page.find("li", "current_rating").text)
+                 .group(1))
+        cast = [x.text.replace("CAST","").split(",")
+                for x in full_cast if x.span.text == 'CAST'][0]
+        director = [x.text.replace("DIR","").replace(",",", ")
+                    for x in full_cast if x.span.text == 'DIR'][0]
+        plot = "\n".join([x.text for x in
+                          page.find("div", "content greenbg clear")
+                          .findAll("p")])
+        title = page.find("h1", "film_title blue").text
+        try: originaltitle = page.find("h2", "film_title notbold blue").text
+        except AttributeError: originaltitle = None
+        duration = page.find("div", text=self._regexps["duration"])
+        writer = [x.text.replace("SCR","").replace(",", ", ")
+                  for x in full_cast if x.span.text == 'SCR'][0]
+        try: playcount = int(page.find("div", "film_views").span.text
+                             .replace(",",""))
+        except AttributeError: playcount = None
+        try: trailer = (BS(self._session.get(page.find("a", "watch_trailer")
+                                             .get("href")).content)
+                        .find("div", "flashplayer").get("data-video_url"))
+        except AttributeError: trailer = None
+        try: audio_language = (self._regexps["audio_lang"].match(
+                                    page.find("div", "film_subtitle_language",
+                                              text=self._regexps["audio_lang"]))
+                               .group(1))
+        except TypeError: audio_language = None
+        try: subtitle_language = (self._regexps["sub_lang"].match(
+                                    page.find("div", "film_subtitle_language",
+                                              text=self._regexps["sub_lang"]))
+                                  .group(1))
+        except TypeError: subtitle_language = None
+        return VideoMetadata(year=year, rating=rating, cast=cast,
+                             director=director, plot=plot, title=title,
+                             originaltitle=originaltitle, duration=duration,
+                             writer=writer, playcount=playcount,
+                             trailer=trailer, audio_language=audio_language,
+                             subtitle_language=subtitle_language)
 
     def login(self, username, password):
         self._username = username
@@ -142,7 +198,7 @@ class Mubi(object):
         landing_page = self._session.post(self._mubi_urls["session"],
                                           data=session_payload)
         self._userid = BS(landing_page.content).find(
-                "a", {"class": "user_avatar"}).get("href").split("/")[-1]
+                "a", "user_avatar").get("href").split("/")[-1]
 
     def is_film_available(self, name):
         if not self._session.head(self._mubi_urls["video"] % name):
@@ -151,7 +207,7 @@ class Mubi(object):
                 raise Exception("Ooops, something went wrong while scraping :-(")
             else:
                 availability = BS(prescreen_page.content).find(
-                        "div", {"class": "film_viewable_status "}).text
+                        "div", "film_viewable_status ").text
                 return not "Not Available to watch" in availability
         else:
             return True
@@ -203,8 +259,8 @@ class Mubi(object):
 
     def get_all_programs(self):
         programs_page = self._session.get(self._mubi_urls["programs"])
-        programs = BS(programs_page.content).findAll(
-                    "div", {"class": re.compile("use6.*")})
+        programs = (BS(programs_page.content)
+                    .findAll("div", {"class": self._regexps["program"]}))
         return [Program(title=x.find("h2").text,
                         identifier=x.find("a").get("href").split("/")[-1],
                         picture=x.find("img").get("src"))
@@ -212,15 +268,16 @@ class Mubi(object):
 
     def get_program_films(self, cinema):
         program_page = self._session.get("/".join([self._mubi_urls["single_program"], cinema]))
-        items = BS(program_page.content).findAll("div",{"class": re.compile("item.*")})
+        items = (BS(program_page.content)
+                 .findAll("div", {"class": self._regexps["item"]}))
         films = []
         for item in items:
             film = dict()
             film['id'] = item.get("data-item-id")
-            film['title'] = item.find("h2", {"class": "film_title "}).text
-            film['director'] = item.find("h2", {"class": "film_director"}
+            film['title'] = item.find("h2", "film_title ").text
+            film['director'] = item.find("h2", "film_director"
                                          ).find("a").text
-            film['country_year'] = item.find("h3", {"class": "film_country_year"}).text
+            film['country_year'] = item.find("h3", "film_country_year").text
             film['thumb'] = item.find("img").get("src").replace("w320", "w448")
             films.append(film)
         return [Film(title="%s: %s (%s)" % (x['director'], x['title'],
