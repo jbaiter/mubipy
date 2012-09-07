@@ -25,6 +25,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import json
+import logging
 import re
 from collections import namedtuple
 from math import ceil
@@ -53,7 +54,8 @@ class Mubi(object):
                 "program":     re.compile("use6.*"),
                 "rating":      re.compile(r"Currently ([1-5]\.\d)/5 Stars."),
                 "audio_lang":  re.compile(r"Audio in (.*)"),
-                "sub_lang":    re.compile(r"Subtitled in (.*)")}
+                "sub_lang":    re.compile(r"Subtitled in (.*)"),
+                "watch_page":  re.compile(r"^.*/watch$")}
     _mubi_urls = {
                   "login":      urljoin(_URL_MUBI_SECURE, "login"),
                   "session":    urljoin(_URL_MUBI_SECURE, "session"),
@@ -78,6 +80,7 @@ class Mubi(object):
     _USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_5_8) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.151 Safari/535.19"
 
     def __init__(self):
+        self._logger = logging.getLogger('mubi.Mubi')
         self._session = requests.session()
         self._session.headers = {'User-Agent': self._USER_AGENT}
         list_page = BS(self._session.get(self._mubi_urls["list"]).content)
@@ -115,7 +118,7 @@ class Mubi(object):
                      self._get_filmstill(self._resolve_id(info['id']))),
                 VideoMetadata(year=info['year'], rating=None,
                               cast=info['cast'].split(", "),
-                              director=", ".join(info['director'].values()),
+                              director=", ".join(info['directors'].values()),
                               plot=None, title=info['title'],
                               originaltitle=None, duration=info['duration'],
                               writer=None, playcount=None, trailer=None,
@@ -214,20 +217,27 @@ class Mubi(object):
                            'password': password,
                            'x': 0,
                            'y': 0}
+        self._logger.debug("Logging in as user '%s', auth token is '%s'"
+                             % (username, auth_token))
         landing_page = self._session.post(self._mubi_urls["session"],
                                           data=session_payload)
         self._userid = BS(landing_page.content).find(
                 "a", "user_avatar").get("href").split("/")[-1]
+        self._logger.debug("Login succesful, user ID is '%s'" % self._userid)
 
     def is_film_available(self, name):
+        # Sometimes we have to load a prescreen page before we can retrieve
+        # the film's URL
         if not self._session.head(self._mubi_urls["video"] % name):
             prescreen_page = self._session.get(self._mubi_urls["prescreen"]
                                                % name)
             if not prescreen_page:
                 raise Exception("Oops, something went wrong while scraping :(")
+            elif self._regexps["watch_page"].match(prescreen_page.url):
+                return True
             else:
                 availability = BS(prescreen_page.content).find(
-                        "div", "film_viewable_status ").text
+                                  "div", "film_viewable_status ").text
                 return not "Not Available to watch" in availability
         else:
             return True

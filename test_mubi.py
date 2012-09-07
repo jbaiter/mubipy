@@ -1,15 +1,15 @@
 # Copyright (c) 2012, Johannes Baiter (jbaiter)
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice,
 #    this list of conditions and the following disclaimer.
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -24,7 +24,7 @@
 
 from nose.tools import raises
 
-from mubi import Mubi
+from mubi import Mubi, Film, Person, Program, VideoMetadata
 
 # Specify your Mubi-Login for testing
 USER = ""
@@ -52,7 +52,8 @@ class TestMubi(object):
         self.mubi.get_play(863)
 
     def test_search_film(self):
-        assert ((u'Nostalghia (1983)', 12580, "http://s3.amazonaws.com/auteurs_production/images/film/nostalghia/w448/nostalghia.jpg")
+        assert ((u'Nostalghia (1983)', 12580,
+                 "http://s3.amazonaws.com/auteurs_production/images/film/nostalghia/w448/nostalghia.jpg")
                 in self.mubi.search_film("nostalghia"))
 
     def test_search_person(self):
@@ -69,16 +70,27 @@ class TestMubi(object):
         assert len(self.mubi.get_all_films(page=2)[1]) == 20
 
     def test_get_all_programs(self):
-        assert ((u'Films by Peter Tscherkassky', u'films-by-peter-tscherkassky--2',
+        assert ((u'Films by Peter Tscherkassky',
+                 u'films-by-peter-tscherkassky--2',
                 "http://s3.amazonaws.com/auteurs_production/program_images/305/films-by-peter-tscherkassky.jpg")
                 in self.mubi.get_all_programs())
 
     def test_get_program_films(self):
-        assert len(self.mubi.get_program_films("films-by-peter-tscherkassky--2")) == 7
+        assert (len(self.mubi.get_program_films(
+                        "films-by-peter-tscherkassky--2")) == 7)
 
     def test_get_watchlist(self):
-        assert ((u'From Morning to Midnight (Germany 1920)',
-                '36051', 'http://s3.amazonaws.com/auteurs_production/images/film/from-morning-to-midnight/w448/from-morning-to-midnight.jpg')
+        assert ((Film(title=u'From Morning to Midnight', mubi_id=36051,
+                      filmstill='http://s3.amazonaws.com/auteurs_production/images/film/from-morning-to-midnight/w448/from-morning-to-midnight.jpg'),
+                VideoMetadata(year=1920, rating=None,
+                              cast=[u'Ernst Deutsch', u'Erna Morena',
+                                    u'Roma Bahn'],
+                              director=u'Karl Heinz Martin', plot=None,
+                              title=u'From Morning to Midnight',
+                              originaltitle=None, duration=65, writer=None,
+                              playcount=None, trailer=None,
+                              audio_language=None, subtitle_language=None,
+                              plotoutline=u'A Cashier in a bank in a small German town is alerted to the power of money by the visit of a rich Italian lady. He embezzles 60,000 Marks and leaves for the capital city, where he attempts to find satisfaction in politics, sport, love and religion.'))
                 in self.mubi.get_watchlist())
 
     def test_genres(self):
